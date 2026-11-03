@@ -1,0 +1,292 @@
+---
+title: "Analysis of California Wildfires and Beavers"
+subtitle: "Project Proposal"
+author: "Sophia Corey ssc107, Carly Schwartz cas393, Kiera Yeboah kay27"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+format:
+    pdf: default
+    html: 
+      self-contained: true
+      grid: 
+        margin-width: 350px
+jupyter: python3
+execute:
+  warning: false
+  echo: fenced
+#reference-location: 
+#citation-location: 
+#bibliography: skeleton.bib
+---
+
+<!-- Notes you should work on this document all semester. This is the same report document you will submit for the midterm report and the final report. It will be your progress at the midterm and you final at the final report. You can change the headers if you need to since it is your teams report, but the headers are set up as a traditional structure. The Roles section must be kept! Everyone on the team must submit the report each time. The document can be the same since you are working as a team, but the Roles section can be different especially if you are having difficulties with your team. This is a perfect place to describe it. -->
+
+<!-- Please reference figures, have citations. -->
+<!-- You can include code in R or Python here and then have all your analysis in your .qmd file making this be a fully reporducible document. It can call scripts as well. Try to think about how you can build this in the most reproducible way. -->
+
+## Abstract
+
+<!-- In the abstract, briefly explain the motivation/background for your research. Provide a core description of your approach and what you were trying to accomplish, and provide a concise summary of your results and conclusions. The abstract should contain at most 10 sentences. The sentences should be short and not convoluted. Any person should be able to understand your abstract. This your opportunity to give a summary and highlight your key findings. -->
+We will write this after we finish our analysis.
+
+## Introduction
+
+<!-- In the introduction, explain the setting for the problem you are studying. What is the scientific/social context for your problem? What are important gaps in knowledge? What are you aiming to research? Where does your data come from? What opportunities does your data offer? Once you "set the stage " for your approach, explain your approach briefly. Your description of the approach should be high-level here as well, but can be a bit more detailed as compared to the abstract (e.g., you can go into secondary key points that you were not able to include in the abstract). Finally, provide a summary of results, in terms of what new insights your research has provided. You can use itemization as you see fit (it is usually very useful to separate out the things you are trying to say explicitly, so that the reader can easily follow). Summarize the main points of the introduction. In this section, you should refer to literature frequently to support your statements. The Introduction should be 1-1,5 page long. -->
+During a wildfire, surrounding dry forests burn quickly. Beavers can help reduce the spread and severity of these wildfires by building dams and creating wetlands that retain moisture and keep the vegetation moist, and the saturated soil and water-rich plants create a bright green zone that resists catching fire. These wetlands also become vital emergency shelters during the fire and critical survival habitats after burn, providing food and shelter when the surrounding forest is destroyed. When a wildfire breaks out, large animals like deer, bears, and birds flee toward beaver ponds, and smaller animals like amphibians and rodents hide in the moist mud or swim in the deep water. They act as natural firebreaks, creating wet, fire-resistant zones that mitigate fire spread, shelter wildlife, and help ecosystems recover after fires.
+
+When beavers build a dam across a stream, they slow down the rushing water and create a “beaver pond”.  Instead of letting rainwater and melting snow rush quickly downstream and out of the area, the dam acts like a speed bump. The water piles up behind it, giving it nowhere to go. Due to the water now moving slowly, it pools up and has time to sink deep into the soil. This water gets trapped underground and creates something scientists call a “water table.”
+
+[More will go here about beavers and fires and we will insert citations]
+
+
+<!-- Typically this section has multiple references and a background figure. -->
+
+## Methods
+
+<!-- In the Methods section, describe in detail your data (how many features, how many samples, in what form it came, what you have done in pre-processing) and what exactly you have done for data analysis, in a way that the reader can repeat your analysis if they are provided with the data. Make sure to have a "Figure" that describes the overall workflow of your data science method (data to results). You can use additional figures in Methods to illustrate ideas/challenges. Use formulas as needed, but make sure that all of the notation you use in the formulas is defined on time (either before the formula, or immediately after). You should make references to the literature to justify the choices you make in designing/applying your methods. Tables should not be ugly (kableExtra for example) The Methods Section should be 3-4 pages long. -->
+### Beaver Data
+The beaver observation data is from iNaturalist.org and was collected from 1997-2026. It is restricted to the geographical area of California. Each entry represents one reported beaver sighting. iNaturalist is a website that allows people to record observations and classify them. People can upload pictures and locations of observed plants and animals and others on the website will help classify them into species. We requested all the observations of the North American Beaver (castor canadensis). 
+
+When we got the data, it was all objects, thus we had to change each column to a reasonable data type. Each entry has an ID, date observed, time observed, quality of the observation, description written by the observer, if the observed animal is wild, a location description from the observer, a longitude and latitude, and species. Longitude and latitude became floating type and time observed became datetime type. There are 2961 entries in this database. 
+
+Some issues with this data source is that it relies on people observing and photographing beavers or evidence of beavers. This means that more beavers will be seen in populated areas than underpopulated areas. This is why we will also be using the reported habitat of the American Beaver by the California Department of Fish and Wildlife. This is just a shape with the reported habitats of beavers. 
+
+### Fire Data
+The fire data is from the California Historical Fire Database by the California Department of Forestry and Fire Protection. Each entry represents a different fire. In order to be recorded, a fire must be a wildland timber fire greater than 10 acres, brush fire greater than 50 acres, grass fire greater than 300 acres, destroy 3 or more residential or commercial structures, or result in a fatality. Thus, this database will not include tiny fires that cause very little damage. 
+
+Each entry has the state where the fire started, year, agency responsible for the fire, name of the fire, date of fire discovery, date of fire containment, cause, acres damaged, and an ID for the fire. There are a few fires that started in Oregon, Nevada, and Arizona that spread to California. There are 18,064 entries in this database spanning from 1950-2025. 
+
+### Process
+```{python python-setup}
+#| echo: false
+import requests
+import geopandas as gpd
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+```
+
+```{python importing}
+import os
+import geopandas as gpd
+import pandas as pd
+
+beaver_range_path = os.path.expanduser('~/courses/csds133/cas393/csds133-26fa-cas393/5-FinalProject/data/American_Beaver_Range_-_CWHR_M112_[ds1899] (1).geojson')
+fire_path = os.path.expanduser('~/courses/csds133/cas393/csds133-26fa-cas393/5-FinalProject/data/California_Historic_Fire_Perimeters_6966767162278220358 (1).geojson')
+beavers_csv_path = os.path.expanduser('~/courses/csds133/cas393/csds133-26fa-cas393/5-FinalProject/data/i_natural_beavers.csv')
+
+# Load boundaries & fires
+ca_bdf = gpd.read_file(beaver_range_path)
+ca_fire = gpd.read_file(fire_path)
+
+# Download state boundaries
+states_url = "https://www2.census.gov/geo/tiger/GENZ2024/shp/cb_2024_us_state_20m.zip"
+states = gpd.read_file(states_url)
+ca = states[states["NAME"] == "California"]
+
+ca_beavers_df = pd.read_csv(beavers_csv_path)
+
+# Convert types
+ca_beavers_df['longitude'] = pd.to_numeric(ca_beavers_df['longitude'], errors='coerce')
+ca_beavers_df['latitude'] = pd.to_numeric(ca_beavers_df['latitude'], errors='coerce')
+ca_beavers_df['observed_on'] = pd.to_datetime(ca_beavers_df['observed_on'], errors='coerce')
+ca_beavers_df['time_observed_at'] = pd.to_datetime(ca_beavers_df['time_observed_at'], errors='coerce')
+
+# Drop rows with missing coordinates before creating geometry
+ca_beavers_df = ca_beavers_df.dropna(subset=['longitude', 'latitude'])
+
+# Fix fire dates
+ca_fire['ALARM_DATE'] = pd.to_datetime(ca_fire['ALARM_DATE'], errors='coerce')
+ca_fire['CONT_DATE'] = pd.to_datetime(ca_fire['CONT_DATE'], errors='coerce')
+```
+
+```{python graph-ca-map}
+#| echo: true
+
+from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
+fig, bx = plt.subplots(figsize=(14, 20))
+
+ca.plot(
+    ax=bx,
+    facecolor="none",
+    edgecolor="black",
+    alpha=0.5
+)
+
+ca_bdf.plot(
+    ax=bx,
+    color='lightseagreen',
+    alpha=0.3,
+    label="Beaver Habitats"
+)
+
+ca_fire.plot(
+    ax=bx,
+    color='coral',
+    alpha=0.6,
+    label="Reported Fires"
+)
+
+bx.scatter(
+    data=ca_beavers_df,
+    x='longitude',
+    y='latitude',
+    color='darkgreen',
+    alpha=0.8,
+    s=2,
+    label='Beaver Sightings'
+)
+
+# Formatting
+legend_elements = [
+    Patch(facecolor='lightseagreen', alpha=0.3, label='Beaver Habitats'),
+    Patch(facecolor='coral', alpha=0.6, label='Reported Fires'),
+    Line2D([0], [0], marker='o', color='w', label='Beaver Sightings',
+           markerfacecolor='darkgreen', markersize=6)
+]
+
+bx.set_title("Beavers and Fires in California", fontsize=20)
+bx.set_xlabel("Longitude", fontsize=18)
+bx.set_ylabel("Latitude", fontsize=18)
+
+bx.legend(handles=legend_elements,loc='upper right', fontsize=10)
+
+plt.show()
+
+```
+Figures are large so that we could copy them into the presentation.
+```{python seasonality-in-fires}
+# Extract temporal features from ALARM_DATE
+ca_fire['Month'] = ca_fire['ALARM_DATE'].dt.strftime('%B')
+ca_fire['Year'] = ca_fire['ALARM_DATE'].dt.year
+
+# Order of months for plotting
+month_order = ['January', 'February', 'March', 'April', 'May', 'June',
+               'July', 'August', 'September', 'October', 'November', 'December']
+
+# Create subplots to show both seasonality and yearly trends
+fig, axes = plt.subplots(2, 1, figsize=(12, 12))
+
+# 1. Fire frequency by Month (Seasonality)
+sns.countplot(
+    data=ca_fire,
+    x='Month',
+    order=month_order,
+    ax=axes[0]
+)
+axes[0].set_title('California Fire Occurrences by Month')
+axes[0].set_xlabel('Month')
+axes[0].set_ylabel('Number of Fires')
+axes[0].tick_params(axis='x', rotation=45)
+
+# 2. Fire frequency by Year (Trends - focusing on recent decades for clarity)
+recent_fires = ca_fire[ca_fire['Year'] >= 1980]
+yearly_counts = recent_fires.groupby('Year').size().reset_index(name='Count')
+
+sns.lineplot(
+    data=yearly_counts,
+    x='Year',
+    y='Count',
+    ax=axes[1],
+    marker='o',
+    color='red'
+)
+axes[1].set_title('California Fire Occurrences by Year (Since 1980)')
+axes[1].set_xlabel('Year')
+axes[1].set_ylabel('Number of Fires')
+axes[1].grid(True, linestyle='--', alpha=0.5)
+
+plt.tight_layout()
+plt.show()
+```
+
+```{python seasonality-in-beavers}
+# Extract temporal features from ALARM_DATE
+ca_beavers_df['Month'] = ca_beavers_df['observed_on'].dt.strftime('%B')
+ca_beavers_df['Year'] = ca_beavers_df['observed_on'].dt.year
+
+# Order of months for plotting
+month_order = ['January', 'February', 'March', 'April', 'May', 'June',
+               'July', 'August', 'September', 'October', 'November', 'December']
+
+# Create subplots to show both seasonality and yearly trends
+fig, axes = plt.subplots(2, 1, figsize=(12, 12))
+
+# 1. Fire frequency by Month (Seasonality)
+sns.countplot(
+    data=ca_beavers_df,
+    x='Month',
+    order=month_order,
+    ax=axes[0]
+)
+axes[0].set_title('California Beaver Occurrences by Month')
+axes[0].set_xlabel('Month')
+axes[0].set_ylabel('Number of Beaver Sightings')
+axes[0].tick_params(axis='x', rotation=45)
+
+
+yearly_counts = ca_beavers_df.groupby('Year').size().reset_index(name='Count')
+
+sns.lineplot(
+    data=yearly_counts,
+    x='Year',
+    y='Count',
+    ax=axes[1],
+    marker='o',
+    color='red'
+)
+axes[1].set_title('California Beaver Sightings by Year (Since 1997)')
+axes[1].set_xlabel('Year')
+axes[1].set_ylabel('Number of Fires')
+axes[1].grid(True, linestyle='--', alpha=0.5)
+
+plt.tight_layout()
+plt.show()
+
+
+```
+## Results
+
+<!-- Here, present your results in the form of figures and tables. In the text, explain what you have observed in an organized manner by making frequent references to figures and tables as it applies. You should always first state your observations (Results). Just state what you see. This should be 1-2 pages long but could be longer if you have more figures. Don't draw conclusions in this section!!! Just state facts! -->
+
+<!-- All figures should mean something. Don't add figures just because you made them. They should tell a story! They move your project forward. -->
+
+
+We are not there yet
+
+
+## Discussion
+
+<!-- Then explain how you interpret them to reach conclusions (now you are Discussing Results). In many reports/papers Results and Discussion are in separate sections. You want to be able to separate what is a result and then here weave together the "why" so how do the results and the introduction fit together. Again, you can use enumeration/itemization as needed. The Discussion section should be 1-2 pages long or longer if you add new Figures to tell your story. You can reference here as well since you are bringing in information from the introduction.  -->
+We are not there yet
+
+## Conclusion
+
+<!-- Briefly explain the "take home messages" you have derived from your project and discuss what else can be done to build on your results. The conclusion should contain at most 10 sentences. This ties to your abstract and the end of your introduction. I should be able to read your abstract and understand your report. I should be able to read your introduction and your conclusions and have a bit deeper understanding. I then should be able to add the discussion and have a bit more details. Then the results. Then the methods. No one typically reads these reports in order even though this is the order they are written. -->
+
+## Roles
+
+<!-- Provide details of each team member's roles and achievements in the project. -->
+<!-- This can be different if you have a difference of opinion than your team on roles. -->
+Carly worked on making the figures and typing up the Quarto doc. Sophia worked on cleaning the data and looking at the missingness, messingness, etc. Kiera worked on writing the content of the document and the slides. 
+
+## References
+
+<!-- Provide a list of the references you used to support your points throughout the report. Do not cite Wikipedia (if you used Wikipedia, find the resource cited there, make sure that it is indeed supporting your point, then cite that resource). Literature is not always to be used because they have statements that support your points, you can also be critical of the literature and/or use it to show that the state-of-the-art is not strong. Use a .bib file. -->
+
+<!-- Instructor's Additional Notes -->
+
+<!-- Your report should not be any longer than 12 pages, excluding the list of references. It is ok if you need a page or 2 if you have some exceptional novel figures you are adding. But think about the content and why it is present in your report. -->
+
+<!-- Your report should include as many figures as you need to tell your story. Convention is typically 1 figure per page (or 2). But try to have them wrapped by your text if you having multiple for views. But do not include unnecessary figures. You can combine multiple figures into a single figure by using separate panels, but each figure should be coherent within itself. You must have figure captions and if you have multiple figures then you need to describe each of them and have labels for each. -->
+
+<!-- Figure captions should have a title (in bold) followed by a clear description of how to read the figure. The purpose of the caption is to help the reader understand the figure. Your observations from the figure should not be included in the caption, they should be stated in the text. -->
+
+<!-- Figures should be clearly visible and all material displayed in the figure should be useful to convey an idea and or to make an observation. You should not include unreadable or irrelevant figures just because they look fancy. You should include the maximum/minimum number of Figures to tell your story (no more or less). -->
+
+<!-- You should definitely mention your figure or table in the text. It could be what it conveys or what it shows/results. -->
+
+<!-- Label your code chunks. You can use R, Python, or both. Your code should be integrated in this report. In the final report, I don't want to see the code in the final output, but you need to turn in the .qmd file so I can see your code. It must be commented well. -->
+
+<!-- Use a .bib file for references. You can change the .qmd file. Check out the Quatro website for ways to improve output. You can change output to html if need be. -->
